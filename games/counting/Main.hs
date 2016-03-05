@@ -46,13 +46,16 @@ initState = blockToSoroban 20 [(0,10)]
 
 -- haste util
 ----------------
-onEventButton :: (IsElem el, MonadEvent m) => el -> MouseEvent -> MouseButton -> ((Int, Int) -> m ()) -> m HandlerInfo
+--
+type ScreenCoord = (Int, Int)
+
+onEventButton :: (IsElem el, MonadEvent m) => el -> MouseEvent -> MouseButton -> (ScreenCoord -> m ()) -> m HandlerInfo
 onEventButton el ev bt h = el `onEvent` ev $ \(MouseData p (Just b) _) -> when (b == bt) $ h p
 
-onEventMove :: (IsElem el, MonadEvent m) => el -> MouseEvent -> ((Int, Int) -> m ()) -> m HandlerInfo
+onEventMove :: (IsElem el, MonadEvent m) => el -> MouseEvent -> (ScreenCoord -> m ()) -> m HandlerInfo
 onEventMove el ev h = el `onEvent` ev $ \(MouseData p _ _) ->  h p
 
-onEventTouch :: (IsElem el, MonadEvent m) => el -> TouchEvent -> ((Int, Int) -> m ()) -> m HandlerInfo
+onEventTouch :: (IsElem el, MonadEvent m) => el -> TouchEvent -> (ScreenCoord -> m ()) -> m HandlerInfo
 onEventTouch el ev h = el `onEvent` ev $ \(TouchData _ (e:_) _) -> h $ clientCoords e
 
 cv :: (JSNum a, JSNum b) => (a, a) -> (b, b)
@@ -75,6 +78,22 @@ clientToScreenPicture = translate (cv offsetSoroban)
 checkPosition :: Position -> Maybe Position
 checkPosition x = toMaybe (0 <= x && x < numPiece initState) x
 
+movePiece :: IORef FocusPoint -> IORef Soroban -> ScreenCoord -> IO ()
+movePiece ptRef stRef p = do
+      fpt <- readIORef ptRef
+      fromMaybe noop $ do
+        pre <- fpt
+        let cur = screenToClient $ cv p
+        curPos <- pointToPos cur
+        prePos <- pointToPos pre
+        return $ do
+          st <- readIORef stRef
+          whenJust $ do
+            st' <- move st prePos curPos
+            return $ do
+              writeIORef stRef st'
+              writeIORef ptRef $ Just cur
+
 registMouseEventHandler :: World IO ()
 registMouseEventHandler = do
   (can, msg, ptRef, stRef, debugRef) <- ask
@@ -84,20 +103,7 @@ registMouseEventHandler = do
     onEventButton can MouseDown MouseLeft $ reflesh' . Just . screenToClient . cv
     onEventButton can MouseUp   MouseLeft $ const $ reflesh' Nothing
     onEventMove   can MouseOut  $ const $ reflesh' Nothing
-    onEventMove   can MouseMove $ \p -> do
-      fpt <- readIORef ptRef
-      fromMaybe noop $ do
-        pre <- fpt
-        let cur = screenToClient $ cv p
-        curPos <- pointToPos cur
-        prePos <- pointToPos pre
-        return $ do
-          st <- readIORef stRef
-          whenJust $ do
-            st' <- move st prePos curPos
-            return $ do
-              writeIORef stRef st'
-              writeIORef ptRef $ Just cur
+    onEventMove   can MouseMove $ movePiece ptRef stRef
   return ()
 
 registTouchEventHandler :: World IO ()
@@ -107,21 +113,8 @@ registTouchEventHandler = do
   liftIO $ do
     let reflesh' pt = do { writeIORef ptRef pt; renderAllIO;}
     onEventTouch can TouchStart $ reflesh' . Just . screenToClient . cv
-    onEventTouch can TouchMove  $ \p -> do
-      fpt <- readIORef ptRef
-      fromMaybe noop $ do
-        pre <- fpt
-        let cur = screenToClient $ cv p
-        curPos <- pointToPos cur
-        prePos <- pointToPos pre
-        return $ do
-          st <- readIORef stRef
-          whenJust $ do
-            st' <- move st prePos curPos
-            return $ do
-              writeIORef stRef st'
-              writeIORef ptRef $ Just cur
     onEventTouch can TouchEnd   $ const $ reflesh' Nothing
+    onEventTouch can TouchMove  $ movePiece ptRef stRef
   return ()
 
 animate :: World IO ()
@@ -133,7 +126,7 @@ animate = do
 
 renderAll :: World IO ()
 renderAll = do
-  (can, msg, ptRef, stRef, _) <- ask
+  (can, _, ptRef, stRef, _) <- ask
   liftIO $ do
     pt <- readIORef ptRef
     st <- readIORef stRef
@@ -141,13 +134,13 @@ renderAll = do
     render can $ clientToScreenPicture $ drawSoroban pt st
     --setProp msg "innerHTML" $  show $ sorobanToBlock st
 drawBall :: Color -> Position -> Picture ()
-drawBall c x = color c  $ fill $ circle (posToPoint x)  pieceRadius
+drawBall c x = color c  $ fill $ circle (first (+ pieceSpace/2) $ posToPoint x)  pieceRadius
 
 drawBlock :: Block -> Picture ()
-drawBlock (pos, num) = color colBlue $ font (show (40+num) ++ "px Bitstream Vera") $ text ((xl+xr)/2, y-1.2*pieceRadius) $ show num
+drawBlock (pos, num) = color colBlue $ font fontStr $ text (slide $ posToPoint pos) $ show num
   where
-    (xl, y) = posToPoint pos
-    (xr, _) = posToPoint (pos+num-1) -- dasai
+    fontStr = show (40+10*num) ++ "px Bitstream Vera"
+    slide = (+ pieceSpace * (convert $ num - 1) / 2 ) *** (flip (-) $ 1.2 * pieceRadius)
 
 drawFocus :: Maybe Position -> Picture ()
 drawFocus x = whenJust $ drawBall colRed <$> x
@@ -156,7 +149,7 @@ pointToPos :: Point -> Maybe Position
 pointToPos (x, _) = checkPosition (floor $ x / pieceSpace)
 
 posToPoint :: Position -> Point
-posToPoint i = cv (pieceSpace * convert i + pieceGap + pieceRadius, pieceRadius)
+posToPoint i = cv (pieceSpace * convert i, pieceRadius)
 
 drawSoroban :: FocusPoint -> Soroban -> Picture ()
 drawSoroban fpt s@(Soroban n ps) = do
