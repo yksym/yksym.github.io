@@ -11,6 +11,7 @@ module Util
     , toMaybe
     ) where
 import Control.Monad.Trans.Reader
+--import Data.Maybe
 
 #ifdef __HASTE__
 when      :: (Applicative f) => Bool -> f () -> f ()

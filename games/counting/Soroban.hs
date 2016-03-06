@@ -6,19 +6,20 @@ module Soroban
     ( Soroban(..)
     , Position
     , Size
-    , Block
+    , Chunk
 #ifndef __HASTE__
     , readSoroban
 #endif
-    , sorobanToBlock
-    , blockToSoroban
+    , sorobanToChunk
+    , chunkToSoroban
     , move
     ) where
 
---import Debug.Trace
+import Debug.Trace
 import Data.List
---import Data.Maybe
-import Control.Arrow
+import Data.Maybe
+import Control.Monad
+--import Control.Arrow
 #ifndef __HASTE__
 import Text.Parsec
 #endif
@@ -26,18 +27,18 @@ import Text.Parsec
 --import GHC.Generics (Generic)
 import Util
 
-debugShow :: b -> c -> c
+debugShow :: (Show b) => b -> c -> c
 --debugShow = traceShow
 debugShow = flip const
 
 type Position = Int
 type Size     = Int
-type Block = (Position, Size)
+type Chunk = (Position, Size)
 
--- spec of pieces: idx1 < idx2 <=> pPos1 < pPos2
+-- spec of balls: idx1 < idx2 <=> pPos1 < pPos2
 data Soroban = Soroban {
-  numPiece :: Size,
-  pieces :: [Position]
+  numBall :: Size,
+  balls :: [Position]
 } deriving (Eq)
 
 instance Show Soroban where
@@ -57,23 +58,21 @@ readSoroban s = eitherToMaybe $ do
             eitherToMaybe = either (const Nothing) Just
 #endif
 
-
-sorobanToBlock :: Soroban -> [Block]
-sorobanToBlock (Soroban _ ps)  = map makeCluster $ groupBy' isConnected ps where
+sorobanToChunk :: Soroban -> [Chunk]
+sorobanToChunk (Soroban _ ps)  = map makeCluster $ groupBy' isConnected ps where
     makeCluster xs = (head xs, length xs)
     isConnected p1  p2 = p1 + 1 == p2
 
-blockToSoroban :: Size -> [Block] -> Soroban
-blockToSoroban len cs = Soroban len ps where
+chunkToSoroban :: Size -> [Chunk] -> Soroban
+chunkToSoroban len cs = Soroban len ps where
     (_, ps) = g cs 0 []
     g [] n' ps' = (n', ps')
     g (x:xs) n' ps' = g xs (n'+ num) (ps'++ new) where
         num = snd x
         offset = fst x
-        new = createPieces offset num
-    createPieces _      0   = []
-    createPieces offset num = offset : createPieces (offset + 1) (num - 1)
-
+        new = createBalls offset num
+    createBalls _      0   = []
+    createBalls offset num = offset : createBalls (offset + 1) (num - 1)
 
 move :: Soroban -> Position -> Position -> Maybe Soroban
 move (Soroban n ps) pOld pNew = let
@@ -84,37 +83,22 @@ move (Soroban n ps) pOld pNew = let
         in
             Soroban n <$> ps'
 
+stepR :: Size -> Position -> [Position]  -> Maybe [Position]
+stepR n p ps = do
+        pRightSpace <- listToMaybe $ [(p+1)..(n-1)] \\ ps
+        let ps' = map (\x -> if x `elem` [p .. pRightSpace-1] then x+1 else x) ps
+        toMaybe (p `elem` ps) ps'
+
 moveR :: Size -> (Position, Position) -> [Position]  -> Maybe [Position]
-moveR n (pOld, pNew) ps = do
-        idx <- elemIndex pOld ps
-        let pNum = length ps
-        let (l,r) = break (>= pOld) ps -- r contais pOld
-        let rNum = pNum - idx
-        let maxPos = n - rNum
-        let pNew' = min pNew maxPos
-        let (numMove, rest) = thrust pNew' r
-        toMaybe (pNew' /= pOld) $ l ++ take numMove [pNew'..] ++ rest
-
--- any element in ps is ge pFrom.(to right)
-thrust :: Position -> [Position]  -> (Size, [Position])
-thrust pTo ps = let
-        (mv, rest) = break (> pTo) ps
-        numMove = length mv
-        in if numMove == 0
-            then (0, rest)
-            else first (+ numMove) $ thrust (pTo + numMove) rest
-
-reflectPos :: Size -> Position -> Position
-reflectPos n p = n-p-1
-
-reflect :: Size -> [Position] -> [Position]
-reflect n = reverse . map (reflectPos n)
+moveR n (pOld, pNew) ps = foldM (flip $ stepR n) ps [pOld..(pNew-1)]
 
 moveL :: Size -> (Position, Position) -> [Position]  -> Maybe [Position]
 moveL n (pOld, pNew) ps = let
-        pOld' = reflectPos n pOld
-        pNew' = reflectPos n pNew
-        ps' = reflect n ps
-    in debugShow (ps, ps', pOld', pNew') $ reflect n <$> moveR n (pOld', pNew') ps'
-
+        reflectPos p = n-p-1
+        reflect = reverse . map reflectPos
+        pOld' = reflectPos pOld
+        pNew' = reflectPos pNew
+        ps' = reflect ps
+        in
+            reflect <$> moveR n (pOld', pNew') ps'
 

@@ -41,11 +41,11 @@ test = do
     --checkId (fromJust . readSoroban . show) sample2
     --checkId (fromJust . readSoroban . show) sample3
     --checkId (fromJust . readSoroban . show) sample4
-    checkId (blockToSoroban 20 . sorobanToBlock) sample0
-    checkId (blockToSoroban 20 . sorobanToBlock) sample1
-    checkId (blockToSoroban 20 . sorobanToBlock) sample2
-    checkId (blockToSoroban 20 . sorobanToBlock) sample3
-    checkId (blockToSoroban 20 . sorobanToBlock) sample4
+    checkId (chunkToSoroban 20 . sorobanToChunk) sample0
+    checkId (chunkToSoroban 20 . sorobanToChunk) sample1
+    checkId (chunkToSoroban 20 . sorobanToChunk) sample2
+    checkId (chunkToSoroban 20 . sorobanToChunk) sample3
+    checkId (chunkToSoroban 20 . sorobanToChunk) sample4
 
 testMove = do
     --right
@@ -55,17 +55,16 @@ testMove = do
     checkEq "OOO-------OOOOOOO---" $ show $ fromJust $ move sample0 3 10
     checkEq "O---------OOOOOOOOO-" $ show $ fromJust $ move sample0 1 10
     checkEq "----------OOOOOOOOOO" $ show $ fromJust $ move sample0 0 10
-    checkEq "----------OOOOOOOOOO" $ show $ fromJust $ move sample0 0 13
     checkEq "OOOOOOO-----OO-O----" $ show $ fromJust $ move sample3 7 12
-    checkEq "OOO---------OOOOOOO-" $ show $ fromJust $ move sample3 3 12
+    checkEq "----------OOOOOOOOOO" $ show $ fromJust $ move sample0 0 13
     --left
     checkEq "-------OO---OOOOOOOO" $ show $ fromJust $ move sample4 11 8
+    checkEq Nothing $ move sample3 3 12
     checkEq Nothing $ move sample5 16 17
     checkEq Nothing $ move sample0 12 8
     checkEq Nothing $ move sample0 13 10
 
 main = do
-    checkEq Nothing $ move sample5 16 17
-    --test
-    --testMove
+    test
+    testMove
 

@@ -17,14 +17,14 @@ import Util
 
 -- constant
 -------------
-pieceRadius :: Double
-pieceRadius = 19.5
+ballRadius :: Double
+ballRadius = 19.5
 
-pieceGap :: Double
-pieceGap = 0.5
+ballGap :: Double
+ballGap = 0.5
 
-pieceSpace :: Double
-pieceSpace = 2 * (pieceGap + pieceRadius)
+ballSpace :: Double
+ballSpace = 2 * (ballGap + ballRadius)
 
 colBlack :: Color
 colBlack = RGB 0 0 0
@@ -36,13 +36,13 @@ colBlue :: Color
 colBlue = RGB 200 0 0
 
 offsetSoroban :: Point
-offsetSoroban = (60, 100)
+offsetSoroban = (60, 220)
 
 msecPerFrame :: Int
 msecPerFrame = 5
 
 initState :: Soroban
-initState = blockToSoroban 20 [(0,10)]
+initState = chunkToSoroban 20 [(0,10)]
 
 -- haste util
 ----------------
@@ -76,10 +76,10 @@ clientToScreenPicture :: Picture () -> Picture ()
 clientToScreenPicture = translate (cv offsetSoroban)
 
 checkPosition :: Position -> Maybe Position
-checkPosition x = toMaybe (0 <= x && x < numPiece initState) x
+checkPosition x = toMaybe (0 <= x && x < numBall initState) x
 
-movePiece :: IORef FocusPoint -> IORef Soroban -> ScreenCoord -> IO ()
-movePiece ptRef stRef p = do
+moveBall :: IORef FocusPoint -> IORef Soroban -> ScreenCoord -> IO ()
+moveBall ptRef stRef p = do
       fpt <- readIORef ptRef
       fromMaybe noop $ do
         pre <- fpt
@@ -103,7 +103,7 @@ registMouseEventHandler = do
     onEventButton can MouseDown MouseLeft $ reflesh' . Just . screenToClient . cv
     onEventButton can MouseUp   MouseLeft $ const $ reflesh' Nothing
     onEventMove   can MouseOut  $ const $ reflesh' Nothing
-    onEventMove   can MouseMove $ movePiece ptRef stRef
+    onEventMove   can MouseMove $ moveBall ptRef stRef
   return ()
 
 registTouchEventHandler :: World IO ()
@@ -114,7 +114,7 @@ registTouchEventHandler = do
     let reflesh' pt = do { writeIORef ptRef pt; renderAllIO;}
     onEventTouch can TouchStart $ reflesh' . Just . screenToClient . cv
     onEventTouch can TouchEnd   $ const $ reflesh' Nothing
-    onEventTouch can TouchMove  $ movePiece ptRef stRef
+    onEventTouch can TouchMove  $ moveBall ptRef stRef
   return ()
 
 animate :: World IO ()
@@ -132,34 +132,34 @@ renderAll = do
     st <- readIORef stRef
     --s  <- readIORef debugRef
     render can $ clientToScreenPicture $ drawSoroban pt st
-    --setProp msg "innerHTML" $  show $ sorobanToBlock st
+    --setProp msg "innerHTML" $  show $ sorobanToChunk st
 drawBall :: Color -> Position -> Picture ()
-drawBall c x = color c  $ fill $ circle (first (+ pieceSpace/2) $ posToPoint x)  pieceRadius
+drawBall c x = color c  $ fill $ circle (first (+ ballSpace/2) $ posToPoint x)  ballRadius
 
-drawBlock :: Block -> Picture ()
-drawBlock (pos, num) = color colBlue $ font fontStr $ text (slide $ posToPoint pos) $ show num
+drawChunkSize :: Chunk -> Picture ()
+drawChunkSize (pos, num) = color colBlue $ font fontStr $ text (slide $ posToPoint pos) $ show num
   where
     fontStr = show (40+10*num) ++ "px Bitstream Vera"
-    slide = (+ pieceSpace * (convert $ num - 1) / 2 ) *** (flip (-) $ 1.2 * pieceRadius)
+    slide = (+ ballSpace * convert (num - 1) / 2) *** flip (-) (1.2 * ballRadius)
 
 drawFocus :: Maybe Position -> Picture ()
 drawFocus x = whenJust $ drawBall colRed <$> x
 
 pointToPos :: Point -> Maybe Position
-pointToPos (x, _) = checkPosition (floor $ x / pieceSpace)
+pointToPos (x, _) = checkPosition (floor $ x / ballSpace)
 
 posToPoint :: Position -> Point
-posToPoint i = cv (pieceSpace * convert i, pieceRadius)
+posToPoint i = cv (ballSpace * convert i, ballRadius)
 
 drawSoroban :: FocusPoint -> Soroban -> Picture ()
 drawSoroban fpt s@(Soroban n ps) = do
     drawLine $ convert n
     traverse (drawBall colBlack) ps
     drawFocus $ find (`elem` ps) $ fpt >>= pointToPos
-    traverse drawBlock $ sorobanToBlock s
+    traverse drawChunkSize $ sorobanToChunk s
     return ()
     where
-        drawLine k = color colBlack $ stroke $ line (cv (0, pieceRadius)) $ cv (k * pieceSpace, pieceRadius)
+        drawLine k = color colBlack $ stroke $ line (cv (0, ballRadius)) $ cv (k * ballSpace, ballRadius)
 
 main :: IO ()
 main = do
