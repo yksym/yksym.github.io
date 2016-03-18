@@ -1,8 +1,8 @@
 {-# LANGUAGE RankNTypes #-}
 
---import Control.Monad
+import Control.Monad(join)
 --import Control.Applicative
-import Control.Arrow
+import Control.Arrow -- or Bifunctor
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
 import Data.Foldable
@@ -59,7 +59,7 @@ onEventTouch :: (IsElem el, MonadEvent m) => el -> TouchEvent -> (ScreenCoord ->
 onEventTouch el ev h = el `onEvent` ev $ \(TouchData _ (e:_) _) -> h $ clientCoords e
 
 cv :: (JSNum a, JSNum b) => (a, a) -> (b, b)
-cv = convert *** convert
+cv = join (***) convert
 
 -- app
 ----------------
