@@ -5,8 +5,8 @@
 * 一番気にすべきはコンパイラの最適化。volatileは扱いが難しいので、C++11のatomic使った方が安心出来そう。
 * cacheは最近のCPUなら基本的に全レベルでコヒーレンシ保ってる
 * intelだとメモリ操作の並び替え（オーダリング）はTPOにのっとってるらしい。dstのアドレスが異なるとwriteがreadを追い越してるように他のプロセッサから見える。
-** strict/sequentじゃないモデルでは誰からみると、というのが入ってきて非常に難しい.
-** 自信がないうちはなるべくきつめのモデルを使うべきだと思う
-** std::vector<atomic<x>>は特にオーバーヘッドないっぽい
-** memory_order_seq_cst はstoreの時にmfence使うみたい
+    * strict/sequentじゃないモデルでは誰からみると、というのが入ってきて非常に難しい.
+    * 自信がないうちはなるべくきつめのモデルを使うべきだと思う
+    * std::vector<atomic<x>>は特にオーバーヘッドないっぽい
+    * memory_order_seq_cst はstoreの時にmfence使うみたい
 
