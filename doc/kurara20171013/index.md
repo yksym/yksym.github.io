@@ -81,11 +81,11 @@ fib  Z        = S Z
 ```
 
 * foldrはパターン1に相当するものしか記述出来ない
-    * mapやfilterやconcat length はパターン1
-    * dropWhileや一部のinsertはパターン2
-```
+```haskell
 foldr :: (a -> b -> b) -> b -> [a] -> b
 ```
+* mapやfilterやconcat length はパターン1
+* dropWhileや一部のinsertはパターン2
 
 * F代数という分野ではパターン1、2、3はそれぞれ catamorphism、paramorphism、histomorphismとよぶそうです[1]
     * morphismは圏論用語で射の意味。ここでは関数と思っておけばOK。
@@ -124,7 +124,7 @@ fib = 1:1:zipWith (+) fib (tail fib)
 
 
 * 型レベルの不動点
-```
+```haskell
 data Nat = Z | S Nat
 data List a = Nil | Cons a (List a)
 
@@ -164,7 +164,7 @@ F A ---------> F B
 意味不明なコード
 -----------------
 
-```
+```haskell
 newtype Fix f = Fix (f (Fix f))
 
 type Nat = Fix Maybe
