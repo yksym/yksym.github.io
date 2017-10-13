@@ -28,18 +28,15 @@
     * プログラム意味論で再帰関数やループの意味を最小不動点を使って記述する話
     * F代数で再帰関数のクラスを関手の不動点を使って分類する話
 
-ここら辺について話します...
+2番目について話します...
 
 
 参考文献
 ----------------
 
-分かりやすいし発展内容も含む素晴らしい資料達
 
-* [1] "CATEGORICAL PROGRAMMING WITH INDUCTIVE AND COINDUCTIVE TYPES" (2000) <- 基本はコレ
-* [2] https://www.slideshare.net/sakai/introduction-to-categorical-programming-revised (2009)
-* [3] http://titech-ssr.blog.jp/archives/1047835805.html (2015)
-* [4] 関数プログラミングの楽しみの３章(英語版ならwebにある)
+* [1] "CATEGORICAL PROGRAMMING WITH INDUCTIVE AND COINDUCTIVE TYPES" (2000)
+
 
 自然数
 -----------------
@@ -318,9 +315,14 @@ f(nil)  = c
 f(x:xs) = h(x, f(xs), xs)
 ```
 
+
+発展内容
+----------------
+
 * anamorphism,histomorphism,hylomorphism,futumorphism,dynamorphism, zygomorphism, ...まだまだ沢山あるらしい
-
-
+    * https://www.slideshare.net/sakai/introduction-to-categorical-programming-revised (2009)
+    * http://titech-ssr.blog.jp/archives/1047835805.html (2015)
+    * 関数プログラミングの楽しみの３章(英語版ならwebにある)
 
 まとめ
 -------------------
