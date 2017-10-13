@@ -51,6 +51,8 @@ factN :: Nat -> Nat
 factN = para phi where
     phi = const (SN ZN) `orN` \(r,x) -> mulN (SN x) r
 
+infinity :: Nat
+infinity = fix SN
 
 instance Num Nat where
     negate ZN = ZN

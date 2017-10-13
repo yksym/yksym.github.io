@@ -8,9 +8,10 @@ module Fix (
   , ana
   , para
   , apo
+  , fix
 ) where
 
-import Data.Function (on)
+import Data.Function (on,fix)
 import Data.Functor
 import Control.Arrow ((&&&), (|||))
 
