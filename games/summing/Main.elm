@@ -8,21 +8,22 @@ import Svg.Attributes exposing (..)
 import Svg.Events exposing (onClick)
 import DrawUtil exposing (..)
 
+type BagIndex = BagL | BagR
+
 type Msg
   = Tick Time
-  | AddCookie Index Int
-  | DeleteCookie Index Int
-  | MoveLCookie Int
-  | MoveRCookie Int
+  | AddCookie BagIndex Int
+  | DeleteCookie BagIndex Int
+  | MoveRLCookie Int
+  | MoveLRCookie Int
   -- | DeleteAllCookie
 
-
-type alias CookiePosition = { bag: Index, cookie: Index }
+type alias CookiePosition = { bag: BagIndex, cookie: Index }
 type alias MovingCookie = { from: CookiePosition, to: CookiePosition, progress: Float}
 type alias Index = Int
 
 type alias Bag = Int
-type alias Model = { bag0  : Bag , bag1 : Bag,  moving : List MovingCookie }
+type alias Model = { bagL  : Bag , bagR : Bag,  moving : List MovingCookie }
 
 main : Program Never Model Msg
 main =
@@ -38,8 +39,8 @@ init : (Model, Cmd Msg)
 init =
   let
     model =
-      { bag0 = 0
-      , bag1 = 0
+      { bagL = 0
+      , bagR = 0
       , moving = []
       }
   in
@@ -74,7 +75,7 @@ bagSize = { w = cookieGap + (cookieSize*2 + cookieGap) * toFloat cookiesPerRow
           , h = cookieGap + (cookieSize*2 + cookieGap) * toFloat cookiesPerCol
           }
 
-cookiePos : Index -> Index -> PositionF
+cookiePos : BagIndex -> Index -> PositionF
 cookiePos bIdx cIdx =
     let
         bpos = bagPos bIdx
@@ -86,8 +87,14 @@ cookiePos bIdx cIdx =
         , y = yoffset + toFloat ((cookiesPerBag - 1 - cIdx) // cookiesPerRow) * scale
         }
 
-bagPos : Index -> PositionF
-bagPos n = {x=bagOffset.x + toFloat n * (bagSize.w + bagGap), y=bagOffset.y}
+bagPos : BagIndex -> PositionF
+bagPos bIdx =
+    let
+        n = case bIdx of
+                BagL -> 0
+                BagR -> 1
+    in
+        {x=bagOffset.x + n * (bagSize.w + bagGap), y=bagOffset.y}
 
 view : Model -> Html Msg
 view model =
@@ -96,23 +103,23 @@ view model =
 
 drawModel : Model -> Html Msg
 drawModel model = svg [ viewBox screen]
-    (drawText { x = (bagPos 1).x - bagGap/2 + 5, y = (bagPos 0).y + (bagSize.h / 2) - 10 } 10 "→"  [fill "#000000", onClick (MoveRCookie 1)]
-    :: drawText { x = (bagPos 1).x - bagGap + 5, y = (bagPos 0).y + (bagSize.h / 2) - 10 } 10 "←" [fill "#000000", onClick (MoveLCookie 1)]
-    :: (drawBag 0 model.bag0
-    ++ drawBag 1 model.bag1)
+    (drawText { x = (bagPos BagR).x - bagGap/2 + 5, y = (bagPos BagL).y + (bagSize.h / 2) - 10 } 10 "→"  [fill "#000000", onClick (MoveLRCookie 1)]
+    :: drawText { x = (bagPos BagR).x - bagGap + 5, y = (bagPos BagL).y + (bagSize.h / 2) - 10 } 10 "←" [fill "#000000", onClick (MoveRLCookie 1)]
+    :: (drawBag BagL model.bagL
+    ++ drawBag BagR model.bagR)
     )
 
 
     -- :: drawText { x = bpos.x + 100, y = bpos.y - 10 } 10 "←" [fill "#000000", onClick (MoveCookie 1 0 1)]
 
-drawHoles : Index -> Int -> List (Svg Msg)
+drawHoles : BagIndex -> Int -> List (Svg Msg)
 drawHoles bIdx n = List.map (\m -> drawCircle (cookiePos bIdx m) cookieSize (fill "none" :: strokeAttr 1 "#000000")) <| List.range 0 (n-1)
 
-drawCookies : Index -> Int -> List (Svg Msg)
+drawCookies : BagIndex -> Int -> List (Svg Msg)
 drawCookies bIdx n = List.map (\m -> drawCircle (cookiePos bIdx m) cookieSize [fill "#990099"]) <| List.range 0 (n-1)
 
 -- ホールは全部書いておく 100個分
-drawBag : Index -> Bag -> List (Svg Msg)
+drawBag : BagIndex -> Bag -> List (Svg Msg)
 drawBag bIdx n =
     let
         bpos = bagPos bIdx
@@ -130,10 +137,10 @@ drawBag bIdx n =
 
 validate : Model -> Model -> Model
 validate default target =
-    if target.bag0 < 0 then default
-    else if target.bag0 > cookiesPerBag then default
-    else if target.bag1 < 0 then default
-    else if target.bag1 > cookiesPerBag then default
+    if target.bagL < 0 then default
+    else if target.bagL > cookiesPerBag then default
+    else if target.bagR < 0 then default
+    else if target.bagR > cookiesPerBag then default
     else target
 
 -- TODO moveはTickで再帰的に処理
@@ -142,10 +149,10 @@ update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
     case msg of
         -- Tick t -> 
-        AddCookie 0 n -> (validate model {model | bag0 = model.bag0 + n}, Cmd.none)
-        AddCookie 1 n -> (validate model {model | bag1 = model.bag1 + n}, Cmd.none)
-        MoveRCookie n -> (validate model {model | bag0 = model.bag0 - n, bag1 = model.bag1 + n}, Cmd.none)
-        MoveLCookie n -> (validate model {model | bag0 = model.bag0 + n, bag1 = model.bag1 - n}, Cmd.none)
+        AddCookie BagL n -> (validate model {model | bagL = model.bagL + n}, Cmd.none)
+        AddCookie BagR n -> (validate model {model | bagR = model.bagR + n}, Cmd.none)
+        MoveLRCookie n -> (validate model {model | bagL = model.bagL - n, bagR = model.bagR + n}, Cmd.none)
+        MoveRLCookie n -> (validate model {model | bagL = model.bagL + n, bagR = model.bagR - n}, Cmd.none)
         _ -> (model, Cmd.none)
 
 subscriptions : Model -> Sub Msg
