@@ -3,4 +3,5 @@
    - ひどいmakeしてるのでそのうちHakyllにする...
  - [そろばん](games/counting/)
    - [そろばん作成時のメモ](games/counting/memo.html)
+ - [ボール箱](games/summing/)
 
