@@ -1,0 +1,20 @@
+{
+  "name": "fb",
+  "set": "psc-fb-0",
+  "source": "https://github.com/yksym/package-sets.git",
+  "depends": [
+    "tuples",
+    "effect",
+    "aff-coroutines",
+    "coroutines",
+    "js-timers",
+    "console",
+    "debug",
+    "affjax",
+    "random",
+    "halogen",
+    "halogen-svg",
+    "psci-support",
+    "prelude"
+  ]
+}
