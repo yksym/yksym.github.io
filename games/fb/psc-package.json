@@ -3,6 +3,7 @@
   "set": "psc-fb-0",
   "source": "https://github.com/yksym/package-sets.git",
   "depends": [
+    "integers",
     "node-buffer",
     "node-path",
     "node-fs",
