@@ -4,7 +4,7 @@ import Prelude
 
 import Data.Array (catMaybes)
 import Data.Tuple (Tuple)
-import Data.Tuple.Nested (Tuple2, Tuple3, tuple2)
+import Data.Tuple.Nested (Tuple3, tuple3)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Number (fromString)
 import Data.Int (round)
@@ -16,7 +16,7 @@ import DOM.HTML.Indexed.StepValue (StepValue(..))
 
 import Effect (Effect)
 import Effect.Class (class MonadEffect)
-import Effect.Console (logShow)
+--import Effect.Console (logShow)
 import Effect.Timer as T
 
 import Halogen as H
@@ -28,43 +28,48 @@ import Halogen.VDom.Driver (runUI)
 import Data.Lens (Lens', lens, _1, _2, (^.), use, (.=), (.~))
 import Data.Profunctor.Strong(class Strong)
 
-type PosVel = Tuple2 Number Number
 type PosVelAcc = Tuple3 Number Number Number
 
-d0 :: forall p a b c. Strong p => p a b -> p (Tuple a c) (Tuple b c)
-d0 = _1
+pos :: forall p a b c. Strong p => p a b -> p (Tuple a c) (Tuple b c)
+pos = _1
 
-d1 :: forall p a b c d. Strong p => p b d -> p (Tuple a (Tuple b c)) (Tuple a (Tuple d c))
-d1 = _2 <<< _1
+vel :: forall p a b c d. Strong p => p b d -> p (Tuple a (Tuple b c)) (Tuple a (Tuple d c))
+vel = _2 <<< _1
 
-d2 :: forall p a b c d e. Strong p => p b a -> p (Tuple c (Tuple e (Tuple b d))) (Tuple c (Tuple e (Tuple a d)))
-d2 = _2 <<< _2 <<< _1
+acc :: forall p a b c d e. Strong p => p b a -> p (Tuple c (Tuple e (Tuple b d))) (Tuple c (Tuple e (Tuple a d)))
+acc = _2 <<< _2 <<< _1
 
 dt :: Number
-dt = 0.01
+dt = 0.001
 
 rdt :: Number
 rdt = 1.0 / dt
 
+-- G(s) = K / ((s - a) (s - b))
 type  State =
     { kp              :: Number
     , ki              :: Number
     , kd              :: Number
+    , k               :: Number
     , a               :: Number
+    , b               :: Number
     , noise           :: Number
     , input           :: PosVelAcc
-    , target          :: PosVel
+    , target          :: PosVelAcc
     }
 
 _input :: Lens' State PosVelAcc
 _input = lens _.input $ _ {input = _}
 
+-- (8.6)
 initialState :: State
 initialState =
-             { kp : zero
-             , ki : zero
+             { kp : 1.0
+             , ki : 1.0
              , kd : zero
-             , a  : zero
+             , k  : 10.0
+             , a  : -1.0
+             , b  : -10.0
              , noise : zero
              , input : zero
              , target : zero
@@ -104,10 +109,12 @@ render state =
   [ renderSlider "Kp"     {min : -100.0, max : 100.0, step : 1.0, value : state.kp,               handler : Just $ ParamChange $ _ {kp = _} }
   , renderSlider "Ki"     {min : -100.0, max : 100.0, step : 1.0, value : state.ki,               handler : Just $ ParamChange $ _ {ki = _} }
   , renderSlider "Kd"     {min : -100.0, max : 100.0, step : 1.0, value : state.kd,               handler : Just $ ParamChange $ _ {kd = _} }
+  , renderSlider "K"      {min : -100.0, max : 100.0, step : 1.0, value : state.k,                handler : Just $ ParamChange $ _ {k  = _} }
   , renderSlider "a"      {min : -100.0, max : 100.0, step : 1.0, value : state.a,                handler : Just $ ParamChange $ _ {a  = _} }
+  , renderSlider "b"      {min : -100.0, max : 100.0, step : 1.0, value : state.b,                handler : Just $ ParamChange $ _ {b  = _} }
   , renderSlider "noise"  {min : -100.0, max : 100.0, step : 1.0, value : state.noise,            handler : Just $ ParamChange $ _ {noise = _} }
-  , renderSlider "input"  {min : -100.0, max : 100.0, step : 1.0, value : state^.(_input <<< _1), handler : Just $ InputChange}
-  , renderSlider "target" {min : -100.0, max : 100.0, step : 1.0, value : state.target^._1,       handler : Nothing}
+  , renderSlider "input"  {min : -10.0,  max : 10.0,  step : 0.1, value : state^.(_input <<< _1), handler : Just $ InputChange}
+  , renderSlider "target" {min : -10.0,  max : 10.0 , step : 0.1, value : state.target^._1,       handler : Nothing}
   ]
 
 eval :: forall m. (MonadEffect m) => Query ~> H.ComponentDSL State Query Void m
@@ -115,7 +122,7 @@ eval = case _ of
         ParamChange update s next -> fromMaybe (pure next) $ do
             x <- fromString s
             pure $ do
-                H.liftEffect $ logShow $ show x
+                --H.liftEffect $ logShow $ show x
                 void $ H.modify $ (\a b -> update b a) x
                 pure next
         InputChange s next ->  fromMaybe (pure next) $ do
@@ -128,28 +135,26 @@ eval = case _ of
           pure next
 
 updateWithPos :: PosVelAcc -> Number -> PosVelAcc
-updateWithPos prev x = prev # d0 .~ x # d1 .~ x' # d2 .~ x''
+updateWithPos prev x = prev # pos .~ x # vel .~ x' # acc .~ x''
     where
-    x'  = (x  - (prev ^. d0)) * rdt
-    x'' = (x' - (prev ^. d1)) * rdt
+    x'  = (x  - (prev ^. pos)) * rdt
+    x'' = (x' - (prev ^. vel)) * rdt
 
---                                                    2
---    Ki X - Ki Y + (((- a) - Kp) Y + Kp X) s + Kd X s
---    -------------------------------------------------
---                         Kd - 1
-updateWithEuler :: State -> PosVel
-updateWithEuler st = tuple2 y y'
+--                            2
+--((b + a) Y - Kd K (Y + X)) s  + ((- a b) Y - Kp K (Y+X)) s - Ki K (Y + X)
+updateWithEuler :: State -> PosVelAcc
+updateWithEuler st = tuple3 y y' y''
     where
-    x0  = st.input ^. d0
-    x0' = st.input ^. d1
-    x0''= st.input ^. d2
-    y0  = st.target ^. d0
-    y0' = st.target ^. d1
-    denom = st.kd - 1.0
-    num   = st.ki * (x0 - y0) - st.a * y + st.kp * (x0' - y0') + st.kd * x0''
-    y   = y0 + dt * y0'
-    y'  = y0' + dt * (num / denom)
-
+    x0    = st.input ^. pos
+    x0'   = st.input ^. vel
+    x0''  = st.input ^. acc
+    y0    = st.target ^. pos
+    y0'   = st.target ^. vel
+    y0''  = st.target ^. acc
+    y0''' = (st.b + st.a) * y0'' - st.kd * st.k * (y0'' + x0'') - st.a*st.b*y' - st.kp*st.k*(y0'+x0') - st.ki * st.k * (y0+x0)
+    y     = y0 + dt * y0'
+    y'    = y0' + dt * y0''
+    y''   = y0'' + dt * y0'''
 
 
 component :: forall m. (MonadEffect m) => H.Component HH.HTML Query Unit Void m
@@ -166,6 +171,6 @@ main :: Effect Unit
 main = runHalogenAff do
   body <- awaitBody
   io <- runUI component unit body
-  void $ H.liftEffect $ T.setInterval (round $ 1000.0 * dt) $ do
+  void $ H.liftEffect $ T.setInterval (round $ 10000.0 * dt) $ do
     runHalogenAff $ io.query $ H.action $ Tick
 
