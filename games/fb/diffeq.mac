@@ -1,13 +1,17 @@
 // x ではなく s にするとsubst が失敗する
-G: K / ((x-a)*(x-b));
+//G: K / ((x-a)*(x-b));
+G: K / (x-a);
 PID: Kp + Ki/x + Kd*x;
 T1: rat(G*PID / (1 + G*PID));
-T2: expand(Y * denom(T1) + num(T1) * X);
-T3: ratsubst(z, x^3 * Y, T2);
+T2: expand(Y * denom(T1) - num(T1) * X);
+//T3: ratsubst(z, x^3 * Y, T2);
+T3: ratsubst(z, x^2 * Y, T2);
 T4: rhs(solve(T3 = 0, z)[1]);
 ordergreat(s,Y);
-(rat(subst(s,x,T4)));
+T5:(rat(subst(s,x,T4)));
+display2d:false$
+sublis([Kp=1.0, Ki=1.0, Kd=0.0, K=10.0, a=-2.0, b=-10.0], T5);
+sublis([Kp=1.0, Ki=1.0, Kd=0.0, K=10.0, a=-2.0, b=-10.0], T2);
+sublis([Kp=1.0, Ki=1.0, Kd=0.0, K=10.0, a=-2.0, b=-10.0], T1);
 
-//                            2
-//((b + a) Y - Kd K (Y + X)) s  + ((- a b) Y - Kp K (Y+X)) s - Ki K (Y + X)
 

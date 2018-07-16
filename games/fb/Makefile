@@ -11,3 +11,6 @@ repl:
 run:
 	electron .
 
+run2:
+	pulp run
+

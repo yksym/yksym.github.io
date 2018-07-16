@@ -8,8 +8,9 @@ import Data.Tuple.Nested (Tuple3, tuple3)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Number (fromString)
 import Data.Int (round)
---import Data.Function ((#))
+--import Data.Function(applyN)
 
+--import Debug.Trace (spy, class DebugWarning)
 
 import DOM.HTML.Indexed.InputType (InputType(..)) as I
 import DOM.HTML.Indexed.StepValue (StepValue(..))
@@ -25,10 +26,14 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
-import Data.Lens (Lens', lens, _1, _2, (^.), use, (.=), (.~))
+import Data.Lens (Lens', lens, _1, _2, (^.), use, (.=), (.~), (%=))
 import Data.Profunctor.Strong(class Strong)
 
+--spy' :: forall a. Show a => a -> a
+--spy' x = spy (show x) x
+
 type PosVelAcc = Tuple3 Number Number Number
+type Pos3 = Tuple3 Number Number Number
 
 pos :: forall p a b c. Strong p => p a b -> p (Tuple a c) (Tuple b c)
 pos = _1
@@ -39,11 +44,27 @@ vel = _2 <<< _1
 acc :: forall p a b c d e. Strong p => p b a -> p (Tuple c (Tuple e (Tuple b d))) (Tuple c (Tuple e (Tuple a d)))
 acc = _2 <<< _2 <<< _1
 
+last1 :: Lens' Pos3 Number
+last1 = _1
+
+last2 :: Lens' Pos3 Number
+last2 = _2 <<< _1
+
+last3 :: Lens' Pos3 Number
+last3 = _2 <<< _2 <<< _1
+
+dupLast :: Pos3 -> Pos3
+dupLast p = tuple3 (p^.last1) (p^.last1) (p^.last2)
+
+conv :: Number -> Pos3 -> PosVelAcc
+conv rdt p = tuple3 x x' x''
+    where
+    x   = p ^. last1
+    x'   = (p ^. last1 - p ^. last2) * rdt
+    x''   = (x' - (p ^. last2 - p ^. last3) * rdt) * rdt
+
 dt :: Number
 dt = 0.001
-
-rdt :: Number
-rdt = 1.0 / dt
 
 -- G(s) = K / ((s - a) (s - b))
 type  State =
@@ -54,12 +75,15 @@ type  State =
     , a               :: Number
     , b               :: Number
     , noise           :: Number
-    , input           :: PosVelAcc
+    , input           :: Pos3
     , target          :: PosVelAcc
     }
 
-_input :: Lens' State PosVelAcc
+_input :: Lens' State Pos3
 _input = lens _.input $ _ {input = _}
+
+_target :: Lens' State PosVelAcc
+_target = lens _.target $ _ {target = _}
 
 -- (8.6)
 initialState :: State
@@ -74,6 +98,9 @@ initialState =
              , input : zero
              , target : zero
              }
+
+stepState :: State
+stepState = initialState # _input .~ tuple3 1.0 1.0 1.0
 
 data Query a = Tick a
     | ParamChange  (State -> Number -> State) String a
@@ -122,39 +149,36 @@ eval = case _ of
         ParamChange update s next -> fromMaybe (pure next) $ do
             x <- fromString s
             pure $ do
-                --H.liftEffect $ logShow $ show x
-                void $ H.modify $ (\a b -> update b a) x
+                void $ H.modify $ (flip update) x
                 pure next
         InputChange s next ->  fromMaybe (pure next) $ do
             x <- fromString s
             pure $ do
-                void $ H.modify $ \st -> st { input = updateWithPos (st.input) x }
+                _input <<< last1 .= x
                 pure next
         Tick next -> do
-          void $ H.modify $ \st -> st { target = updateWithEuler st }
+          --st <- use identity
+          identity %= updateWithEuler
+          _input %= dupLast
           pure next
 
-updateWithPos :: PosVelAcc -> Number -> PosVelAcc
-updateWithPos prev x = prev # pos .~ x # vel .~ x' # acc .~ x''
+-- applyN updateWithEuler 100 initialState
+updateWithEuler :: State -> State
+updateWithEuler st = st # _target .~ tuple3 y y' y''
     where
-    x'  = (x  - (prev ^. pos)) * rdt
-    x'' = (x' - (prev ^. vel)) * rdt
-
---                            2
---((b + a) Y - Kd K (Y + X)) s  + ((- a b) Y - Kp K (Y+X)) s - Ki K (Y + X)
-updateWithEuler :: State -> PosVelAcc
-updateWithEuler st = tuple3 y y' y''
-    where
-    x0    = st.input ^. pos
-    x0'   = st.input ^. vel
-    x0''  = st.input ^. acc
+    input = conv (1.0 / dt) st.input
+    x0    = input ^. pos
+    x0'   = input ^. vel
+    x0''  = input ^. acc
     y0    = st.target ^. pos
     y0'   = st.target ^. vel
-    y0''  = st.target ^. acc
-    y0''' = (st.b + st.a) * y0'' - st.kd * st.k * (y0'' + x0'') - st.a*st.b*y' - st.kp*st.k*(y0'+x0') - st.ki * st.k * (y0+x0)
+    --y0''  = st.target ^. acc
+    y0''  = (st.kd*st.k*x0''+ st.a * y0' + st.kp*st.k*(x0'-y0') + st.ki*st.k*(x0 - y0))/(1.0+st.kd*st.k)
+    --y0''' = (st.b + st.a) * y0'' - st.kd * st.k * (y0'' + x0'') - st.a*st.b*y' - st.kp*st.k*(y0'+x0') - st.ki * st.k * (y0+x0)
+    --y0''' = (st.b + st.a) * y0'' -  st.a*st.b*y' - st.kp*st.k*(y0'+x0') - st.ki * st.k * (y0+x0)
     y     = y0 + dt * y0'
     y'    = y0' + dt * y0''
-    y''   = y0'' + dt * y0'''
+    y''   = y0'' -- y0'' + dt * y0'''
 
 
 component :: forall m. (MonadEffect m) => H.Component HH.HTML Query Unit Void m
