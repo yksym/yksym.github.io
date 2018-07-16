@@ -64,7 +64,7 @@ conv rdt p = tuple3 x x' x''
     x''   = (x' - (p ^. last2 - p ^. last3) * rdt) * rdt
 
 dt :: Number
-dt = 0.001
+dt = 0.01
 
 -- G(s) = K / ((s - a) (s - b))
 type  State =
@@ -195,6 +195,6 @@ main :: Effect Unit
 main = runHalogenAff do
   body <- awaitBody
   io <- runUI component unit body
-  void $ H.liftEffect $ T.setInterval (round $ 10000.0 * dt) $ do
+  void $ H.liftEffect $ T.setInterval (round $ 1000.0 * dt) $ do
     runHalogenAff $ io.query $ H.action $ Tick
 
